@@ -13,6 +13,7 @@
 
 //dotnet add package Swashbuckle.AspNetCore.Swagger
 
+using System.Net.WebSockets;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using minimal_api.Domain.DTOs;
@@ -57,8 +58,37 @@ app.MapPost("/administradores/Login", ([FromBody] LoginDTO loginDTO, iAdministra
 
 #region Veiculos
 
+ErrosDeValidacao validaDTO(VeiculoDTO veiculoDTO){
+
+    var validacao = new ErrosDeValidacao{
+        Mensagens = new List<string>()
+    };
+
+    if(string.IsNullOrEmpty(veiculoDTO.Nome)){
+        validacao.Mensagens.Add("O nome não pode ser vazio");
+    }
+
+    if(string.IsNullOrEmpty(veiculoDTO.Marca)){
+        validacao.Mensagens.Add("A marca não pode ser vazia");
+    }
+
+    if(veiculoDTO.Ano < 1950){
+        validacao.Mensagens.Add("Veículo muito antigo");
+    }
+
+    return validacao;
+
+}
+
 app.MapPost("/veiculos", ([FromBody] VeiculoDTO veiculoDTO, iVeiculoServico veiculoServico) =>
 {
+    
+    var validacao = validaDTO(veiculoDTO);
+    
+    if(validacao.Mensagens.Count > 0){
+        return Results.BadRequest(validacao);
+    }
+
     var veiculo = new Veiculo
     {
         Nome = veiculoDTO.Nome,
@@ -87,7 +117,41 @@ app.MapGet("/veiculos/{id}", ([FromRoute]int id , iVeiculoServico veiculoServico
     return Results.Ok(veiculo);
 }).WithTags("Veiculo");
 
+app.MapPut("/veiculos/{id}", ([FromRoute]int id , VeiculoDTO veiculoDTO, iVeiculoServico veiculoServico) =>
+{
+    var veiculo = veiculoServico.BuscaPorId(id);
+
+    if(veiculo == null) return Results.NotFound();
+
+    var validacao = validaDTO(veiculoDTO);
+    
+    if(validacao.Mensagens.Count > 0){
+        return Results.BadRequest(validacao);
+    }
+
+    veiculo.Nome = veiculoDTO.Nome;
+    veiculo.Marca = veiculoDTO.Marca;
+    veiculo.Ano = veiculoDTO.Ano;
+
+    veiculoServico.Atualizar(veiculo);
+
+    return Results.Ok(veiculo);
+}).WithTags("Veiculo");
+
+app.MapDelete("/veiculos/{id}", ([FromRoute]int id , iVeiculoServico veiculoServico) =>
+{
+    var veiculo = veiculoServico.BuscaPorId(id);
+
+    if(veiculo == null) return Results.NotFound();
+
+    veiculoServico.Apagar(veiculo);
+
+    return Results.NoContent();
+}).WithTags("Veiculo");
+
 #endregion 
+
+//parei em delete para apagar veiculo
 
 #region app
 app.UseSwagger();
